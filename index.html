@@ -39,6 +39,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--acc);outli
 .disc{font-size:13px;color:var(--mute)}
 details{font-size:14px}summary{cursor:pointer;color:var(--acc)}
 #tests div{padding:2px 0}
+.aibox{border-color:var(--acc);background:var(--card)}
 </style>
 </head>
 <body>
@@ -100,7 +101,7 @@ function classify(it,v,s,lo,hi){
   return"ok";
 }
 const $=id=>document.getElementById(id);
-let cur=0;
+let cur=0,last=[];
 function tabs(){
   $("tabs").innerHTML="";
   P.forEach((p,i)=>{const b=document.createElement("button");b.textContent=p.name;b.setAttribute("aria-pressed",i===cur);b.onclick=()=>{cur=i;tabs();rows();$("out").innerHTML=""};$("tabs").appendChild(b)});
@@ -115,19 +116,21 @@ function rows(){
 }
 const num=s=>{s=(s||"").replace(",",".").trim();const n=parseFloat(s);return s===""||isNaN(n)?null:n};
 function run(){
-  const s=+$("sex").value;let out="",urgent=false,any=false;
+  const s=+$("sex").value;let out="",urgent=false,any=false;last=[];
   P[cur].items.forEach(it=>{
     const raw=num(document.querySelector(`[data-v="${it.k}"]`).value);if(raw==null)return;any=true;
     const us=document.querySelector(`[data-u="${it.k}"]`),m=it.u[us?+us.value:0][1];
     const lo=num(document.querySelector(`[data-lo="${it.k}"]`).value),hi=num(document.querySelector(`[data-hi="${it.k}"]`).value);
     const st=classify(it,raw*m,s,lo!=null?lo*m:null,hi!=null?hi*m:null);
     if(st==="urgent")urgent=true;
+    last.push({name:it.n,value:raw,unit:it.u[us?+us.value:0][0],status:st});
     const label={ok:"Within range",low:"Below range",high:"Above range",urgent:"Needs prompt attention"}[st];
     const msg=st==="ok"?"This value is within the expected range.":st==="urgent"?URG:M[it.k][st==="low"?0:1];
     out+=`<div class="res ${st}"><b>${it.n}: ${raw} ${it.u[us?+us.value:0][0]}</b><span class="tag">${label}</span><p>${msg}</p></div>`;
   });
   if(!any)out=`<div class="res"><p>Enter at least one value to get an explanation.</p></div>`;
-  $("out").innerHTML=(urgent?`<div class="banner">One or more values need prompt medical attention. Please contact a doctor today.</div>`:"")+out;
+  $("out").innerHTML=(urgent?`<div class="banner">One or more values need prompt medical attention. Please contact a doctor today.</div>`:"")+out+(any&&AI_URL.startsWith("http")?`<button class="go" id="ai" style="margin-top:6px">Explain with AI</button><div id="aiout"></div>`:"");
+  if($("ai"))$("ai").onclick=ai;
 }
 function tests(){
   const g=k=>P.flatMap(p=>p.items).find(i=>i.k===k);
@@ -136,6 +139,19 @@ function tests(){
   let pass=0,h="";
   T.forEach(t=>{const r=classify(g(t[0]),t[1],t[2],t[4],t[5]),okk=r===t[3];if(okk)pass++;h+=`<div>${okk?"✅":"❌"} ${t[0]} ${+t[1].toFixed(1)} → ${r} (expected ${t[3]})</div>`});
   $("tests").innerHTML=`<b>${pass}/${T.length} passed</b>`+h;
+}
+const AI_URL=https://dash.cloudflare.com/ed42dc10712d9815c8dd05c4103453b0/workers/services/view/lablens-ai/production/domains;
+async function ai(){
+  const b=$("ai"),o=$("aiout");b.disabled=true;b.textContent="Thinking…";
+  try{
+    const r=await fetch(AI_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({results:last})});
+    if(!r.ok)throw 0;const d=await r.json();if(!d.text)throw 0;
+    o.innerHTML="";const box=document.createElement("div");box.className="res aibox";
+    const t=document.createElement("b");t.textContent="AI explanation";box.appendChild(t);
+    d.text.split(/\n\s*\n/).forEach(x=>{const p=document.createElement("p");p.textContent=x.trim();box.appendChild(p)});
+    const n=document.createElement("p");n.className="disc";n.textContent="AI-generated and may contain mistakes. Statuses above come from fixed rules, not from the AI.";box.appendChild(n);o.appendChild(box);
+  }catch(e){o.innerHTML='<div class="res"><p>The AI explanation is unavailable right now. The rule-based results above are still valid.</p></div>'}
+  b.disabled=false;b.textContent="Explain with AI";
 }
 $("go").onclick=run;$("rt").onclick=tests;tabs();rows();
 </script>
