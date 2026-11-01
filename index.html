@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LabLens – Lab Result Explainer</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef4f5;--card:#fff;--ink:#102a33;--mute:#5b727a;--line:#cfdde0;--acc:#0f7c8a;--ok:#1b7a4b;--warn:#a86400;--bad:#b3261e;--badbg:#fdecea;--okbg:#e6f4ec;--warnbg:#fff3df;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0c1a1f;--card:#13262c;--ink:#e6f1f3;--mute:#93aab1;--line:#264049;--acc:#4fc0cf;--ok:#6fd3a0;--warn:#f0b35a;--bad:#ff8f86;--badbg:#3a1b19;--okbg:#14301f;--warnbg:#38290f}}
+:root[data-theme="dark"]{--bg:#0c1a1f;--card:#13262c;--ink:#e6f1f3;--mute:#93aab1;--line:#264049;--acc:#4fc0cf;--ok:#6fd3a0;--warn:#f0b35a;--bad:#ff8f86;--badbg:#3a1b19;--okbg:#14301f;--warnbg:#38290f}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "IBM Plex Sans",system-ui,sans-serif}
+main{max-width:640px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:28px;margin:0 0 4px;letter-spacing:-.02em}
+.sub{color:var(--mute);margin:0 0 18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+label{font-size:13px;color:var(--mute)}
+select,input{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px;width:100%;min-width:0}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+.top{display:flex;gap:10px}.top>div{flex:1}
+.tabs{display:flex;gap:6px;margin:12px 0;overflow-x:auto}
+.tabs button{flex:1;white-space:nowrap;padding:9px 10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;font:inherit;font-size:14px;cursor:pointer}
+.tabs button[aria-pressed=true]{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+.row{padding:10px 0;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.nm{font-weight:600;margin-bottom:6px}
+.nm small{font-weight:400;color:var(--mute)}
+.f{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:6px}
+.go{width:100%;padding:13px;border:0;border-radius:10px;background:var(--acc);color:#fff;font:inherit;font-weight:600;cursor:pointer}
+.res{border-left:5px solid var(--line);padding:10px 12px;margin:10px 0;border-radius:6px;background:var(--bg)}
+.res b{display:block}.res p{margin:4px 0 0;font-size:15px}
+.res.ok{border-color:var(--ok);background:var(--okbg)}.res.low,.res.high{border-color:var(--warn);background:var(--warnbg)}.res.urgent{border-color:var(--bad);background:var(--badbg)}
+.tag{font-size:13px;font-weight:600}
+.ok .tag{color:var(--ok)}.low .tag,.high .tag{color:var(--warn)}.urgent .tag{color:var(--bad)}
+.banner{background:var(--badbg);border:1px solid var(--bad);color:var(--bad);padding:12px;border-radius:10px;font-weight:600;margin-bottom:10px}
+.disc{font-size:13px;color:var(--mute)}
+details{font-size:14px}summary{cursor:pointer;color:var(--acc)}
+#tests div{padding:2px 0}
+</style>
+</head>
+<body>
+<main>
+<h1>LabLens</h1>
+<p class="sub">Enter your lab results and get a plain-English explanation plus questions to ask your doctor. Adults 18+.</p>
+
+<div class="card">
+  <div class="top">
+    <div><label for="sex">Sex at birth</label><select id="sex"><option value="0">Male</option><option value="1">Female</option></select></div>
+  </div>
+  <div class="tabs" id="tabs"></div>
+  <div id="rows"></div>
+  <p class="disc">Tip: copy the reference range printed on your lab report into the “Lab low / high” boxes. Labs differ, so your report’s range takes priority.</p>
+  <button class="go" id="go">Explain my results</button>
+</div>
+
+<div id="out" aria-live="polite"></div>
+
+<p class="disc">LabLens is an educational tool, not a medical device. It does not diagnose. Always discuss results with a qualified doctor.</p>
+<details class="card"><summary>Run self-tests</summary><button class="go" id="rt" style="margin:10px 0">Run tests</button><div id="tests"></div></details>
+</main>
+
+<script>
+// Rules engine: [lo, hi] may be a number or [male, female]; ex = upper limit is exclusive ("less than")
+const P=[
+{id:"cbc",name:"Blood count",items:[
+ {k:"hgb",n:"Hemoglobin",u:[["g/dL",1]],lo:[13.5,12],hi:[17.5,15.5],crit:[7,20]},
+ {k:"rbc",n:"Red blood cells",u:[["×10¹²/L",1]],lo:[4.7,4.2],hi:[6.1,5.4]},
+ {k:"wbc",n:"White blood cells",u:[["×10⁹/L",1]],lo:4,hi:11,crit:[2,30]},
+ {k:"plt",n:"Platelets",u:[["×10⁹/L",1]],lo:150,hi:450,crit:[20,1000]}]},
+{id:"glu",name:"Glucose",items:[
+ {k:"glu",n:"Fasting glucose",u:[["mg/dL",1],["mmol/L",18.016]],lo:70,hi:100,ex:1,crit:[54,400]}]},
+{id:"lip",name:"Lipids",items:[
+ {k:"chol",n:"Total cholesterol",u:[["mg/dL",1],["mmol/L",38.67]],hi:200,ex:1},
+ {k:"ldl",n:"LDL cholesterol",u:[["mg/dL",1],["mmol/L",38.67]],hi:100,ex:1},
+ {k:"hdl",n:"HDL cholesterol",u:[["mg/dL",1],["mmol/L",38.67]],lo:[40,50]},
+ {k:"tg",n:"Triglycerides",u:[["mg/dL",1],["mmol/L",88.57]],hi:150,ex:1}]}
+];
+const M={
+ hgb:["Low hemoglobin can be linked to anemia, iron deficiency, or blood loss. Ask whether iron levels or other tests are needed.","High hemoglobin can be linked to dehydration, smoking, or high altitude. Ask whether follow-up is needed."],
+ rbc:["Low red cell count often goes together with anemia. Ask what might explain it.","High red cell count can come from dehydration or low oxygen levels. Ask whether to repeat the test."],
+ wbc:["Low white cells can follow viral infections or some medicines. Ask whether to repeat the test.","High white cells often accompany infection or inflammation. Ask what might be causing it."],
+ plt:["Low platelets can affect clotting. Ask whether to repeat the test, and mention any unusual bruising or bleeding.","High platelets can occur with inflammation or iron deficiency. Ask whether follow-up is needed."],
+ glu:["Low fasting glucose can cause shakiness or dizziness. Ask about possible causes, especially if you have symptoms.","Fasting glucose of 100 mg/dL or more may suggest prediabetes; 126 or more on repeat testing is in the diabetes range. Ask about a confirmation test such as HbA1c."],
+ chol:["","High total cholesterol raises long-term heart risk. Ask about diet, activity, and checking the full lipid panel."],
+ ldl:["","LDL above 100 mg/dL is above optimal. How much it matters depends on your overall heart risk. Ask your doctor."],
+ hdl:["Low HDL (“good” cholesterol) is linked to higher heart risk. Exercise and diet can help. Ask your doctor.",""],
+ tg:["","High triglycerides are linked to diet, alcohol, and blood sugar. Ask whether to repeat the test after fasting."]
+};
+const URG="This value is in a range that needs prompt medical attention. Contact a doctor or urgent care today. If you feel unwell, seek emergency help.";
+const R=(x,s)=>Array.isArray(x)?x[s]:x;
+function classify(it,v,s,lo,hi){
+  const c=it.crit;
+  if(c&&(v<=c[0]||v>=c[1]))return"urgent";
+  const L=lo!=null?lo:R(it.lo,s),H=hi!=null?hi:R(it.hi,s),ex=hi==null&&it.ex;
+  if(L!=null&&v<L)return"low";
+  if(H!=null&&(ex?v>=H:v>H))return"high";
+  return"ok";
+}
+const $=id=>document.getElementById(id);
+let cur=0;
+function tabs(){
+  $("tabs").innerHTML="";
+  P.forEach((p,i)=>{const b=document.createElement("button");b.textContent=p.name;b.setAttribute("aria-pressed",i===cur);b.onclick=()=>{cur=i;tabs();rows();$("out").innerHTML=""};$("tabs").appendChild(b)});
+}
+function rows(){
+  $("rows").innerHTML=P[cur].items.map(it=>{
+    const un=it.u.length>1?`<select data-u="${it.k}" aria-label="Unit">${it.u.map((u,i)=>`<option value="${i}">${u[0]}</option>`).join("")}</select>`:"";
+    return `<div class="row"><div class="nm">${it.n} <small>${it.u.length>1?"":it.u[0][0]}</small></div>
+    <div class="f"><div><label>Your value</label><input inputmode="decimal" data-v="${it.k}" placeholder="e.g. 13.2"></div>
+    <div><label>Lab low</label><input inputmode="decimal" data-lo="${it.k}"></div>
+    <div><label>Lab high</label><input inputmode="decimal" data-hi="${it.k}"></div></div>${un?`<div style="margin-top:6px">${un}</div>`:""}</div>`}).join("");
+}
+const num=s=>{s=(s||"").replace(",",".").trim();const n=parseFloat(s);return s===""||isNaN(n)?null:n};
+function run(){
+  const s=+$("sex").value;let out="",urgent=false,any=false;
+  P[cur].items.forEach(it=>{
+    const raw=num(document.querySelector(`[data-v="${it.k}"]`).value);if(raw==null)return;any=true;
+    const us=document.querySelector(`[data-u="${it.k}"]`),m=it.u[us?+us.value:0][1];
+    const lo=num(document.querySelector(`[data-lo="${it.k}"]`).value),hi=num(document.querySelector(`[data-hi="${it.k}"]`).value);
+    const st=classify(it,raw*m,s,lo!=null?lo*m:null,hi!=null?hi*m:null);
+    if(st==="urgent")urgent=true;
+    const label={ok:"Within range",low:"Below range",high:"Above range",urgent:"Needs prompt attention"}[st];
+    const msg=st==="ok"?"This value is within the expected range.":st==="urgent"?URG:M[it.k][st==="low"?0:1];
+    out+=`<div class="res ${st}"><b>${it.n}: ${raw} ${it.u[us?+us.value:0][0]}</b><span class="tag">${label}</span><p>${msg}</p></div>`;
+  });
+  if(!any)out=`<div class="res"><p>Enter at least one value to get an explanation.</p></div>`;
+  $("out").innerHTML=(urgent?`<div class="banner">One or more values need prompt medical attention. Please contact a doctor today.</div>`:"")+out;
+}
+function tests(){
+  const g=k=>P.flatMap(p=>p.items).find(i=>i.k===k);
+  const T=[["hgb",11,1,"low"],["hgb",14,0,"ok"],["hgb",6.5,0,"urgent"],["glu",99,0,"ok"],["glu",100,0,"high"],["glu",50,0,"urgent"],["hdl",45,1,"low"],["hdl",45,0,"ok"],["tg",150,0,"high"],["plt",15,0,"urgent"],
+  ["glu",5.5*18.016,0,"ok"],["glu",7*18.016,0,"high"],["hgb",13,0,"low"],["hgb",13,0,"ok",12.5,16]];
+  let pass=0,h="";
+  T.forEach(t=>{const r=classify(g(t[0]),t[1],t[2],t[4],t[5]),okk=r===t[3];if(okk)pass++;h+=`<div>${okk?"✅":"❌"} ${t[0]} ${+t[1].toFixed(1)} → ${r} (expected ${t[3]})</div>`});
+  $("tests").innerHTML=`<b>${pass}/${T.length} passed</b>`+h;
+}
+$("go").onclick=run;$("rt").onclick=tests;tabs();rows();
+</script>
+</body>
+</html>
