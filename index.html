@@ -140,7 +140,7 @@ function tests(){
   T.forEach(t=>{const r=classify(g(t[0]),t[1],t[2],t[4],t[5]),okk=r===t[3];if(okk)pass++;h+=`<div>${okk?"✅":"❌"} ${t[0]} ${+t[1].toFixed(1)} → ${r} (expected ${t[3]})</div>`});
   $("tests").innerHTML=`<b>${pass}/${T.length} passed</b>`+h;
 }
-const AI_URL="https://lablens-ai.inzhynauyryz.workers.dev";
+const AI_URL="https://dash.cloudflare.com/ed42dc10712d9815c8dd05c4103453b0/workers/services/view/lablens-ai/production/domains";
 async function ai(){
   const b=$("ai"),o=$("aiout");b.disabled=true;b.textContent="Thinking…";
   try{
