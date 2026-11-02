@@ -140,17 +140,17 @@ function tests(){
   T.forEach(t=>{const r=classify(g(t[0]),t[1],t[2],t[4],t[5]),okk=r===t[3];if(okk)pass++;h+=`<div>${okk?"✅":"❌"} ${t[0]} ${+t[1].toFixed(1)} → ${r} (expected ${t[3]})</div>`});
   $("tests").innerHTML=`<b>${pass}/${T.length} passed</b>`+h;
 }
-const AI_URL="https://dash.cloudflare.com/ed42dc10712d9815c8dd05c4103453b0/workers/services/view/lablens-ai/production/domains";
+const AI_URL="https://lablens-ai.inzhynauyryz.workers.dev";
 async function ai(){
   const b=$("ai"),o=$("aiout");b.disabled=true;b.textContent="Thinking…";
   try{
     const r=await fetch(AI_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({results:last})});
-    if(!r.ok)throw 0;const d=await r.json();if(!d.text)throw 0;
+    const d=await r.json().catch(()=>({}));if(!r.ok||!d.text)throw (d.error||"HTTP "+r.status);
     o.innerHTML="";const box=document.createElement("div");box.className="res aibox";
     const t=document.createElement("b");t.textContent="AI explanation";box.appendChild(t);
     d.text.split(/\n\s*\n/).forEach(x=>{const p=document.createElement("p");p.textContent=x.trim();box.appendChild(p)});
     const n=document.createElement("p");n.className="disc";n.textContent="AI-generated and may contain mistakes. Statuses above come from fixed rules, not from the AI.";box.appendChild(n);o.appendChild(box);
-  }catch(e){o.innerHTML='<div class="res"><p>The AI explanation is unavailable right now. The rule-based results above are still valid.</p></div>'}
+  }catch(e){o.innerHTML='<div class="res"><p>The AI explanation is unavailable right now. The rule-based results above are still valid.</p><p class="disc">Details: '+String(e&&e.message||e).replace(/</g,"&lt;")+'</p></div>'}
   b.disabled=false;b.textContent="Explain with AI";
 }
 $("go").onclick=run;$("rt").onclick=tests;tabs();rows();
